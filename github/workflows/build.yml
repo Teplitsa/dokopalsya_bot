@@ -1,0 +1,85 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      COMMIT_SHORT_SHA: ${{ steps.set_short_sha.outputs.COMMIT_SHORT_SHA }}
+      BRANCH_TAG: ${{ steps.set_tag.outputs.BRANCH_TAG }}
+      ENV: ${{ steps.set_env.outputs.ENV }}
+    steps:
+
+      - name: Set short git commit SHA
+        id: set_short_sha
+        run: |
+          calculatedSha=$(echo ${GITHUB_SHA} | cut -c1-7)
+          echo "COMMIT_SHORT_SHA=$calculatedSha" >> "$GITHUB_OUTPUT"
+
+      - name: Confirm git commit SHA output
+        run: echo ${{ steps.set_short_sha.outputs.COMMIT_SHORT_SHA }}
+
+      - name: Set branch tag
+        id: set_tag
+        run: |
+          branchTag=$(echo ${GITHUB_REF#refs/*/} | tr '/_' '-')
+          echo "BRANCH_TAG=$branchTag" >> "$GITHUB_OUTPUT"
+
+      - name: Confirm branch tag output
+        run: echo ${{ steps.set_tag.outputs.BRANCH_TAG }}
+
+      - name: Set environment
+        id: set_env
+        run: |
+          if [[ $GITHUB_BASE_REF == 'main' ]] || [[ $GITHUB_REF == 'refs/heads/main' ]]; then
+            echo "ENV=prod" >> "$GITHUB_OUTPUT" 
+          elif [[ $GITHUB_BASE_REF == 'develop' ]] || [[ $GITHUB_REF == 'refs/heads/develop' ]]; then
+            echo "ENV=dev" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Confirm branch tag output
+        run: echo ${{ steps.set_tag.outputs.ENV }}
+
+  build:
+    needs: prepare
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v2 
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and push
+      uses: docker/build-push-action@v3
+      with:
+        context: .
+        push: true
+        tags: |
+          ghcr.io/${{ github.repository }}:${{ needs.prepare.outputs.BRANCH_TAG }}
+          ghcr.io/${{ github.repository }}:${{ needs.prepare.outputs.COMMIT_SHORT_SHA }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+deploy:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to environment
+        uses: distributhor/workflow-webhook@v3
+        with:
+          webhook_url: ${{ secrets.DEPLOY_WEBHOOK_URL }}
+          verify_ssl: false

@@ -1,0 +1,6 @@
+.venv
+.*
+Dockerfile
+Makefile
+**/__pycache__
+**/.*
