@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   bot:
-    image: ghcr.io/Teplitsa/factchecker-bot:main
+    image: ghcr.io/teplitsa/factchecker-bot:main
     environment:
       - BOT_TOKEN
       - GOOGLE_API_KEY

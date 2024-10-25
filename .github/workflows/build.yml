@@ -69,8 +69,8 @@ jobs:
         context: .
         push: true
         tags: |
-          ghcr.io/${{ github.repository }}:${{ needs.prepare.outputs.BRANCH_TAG }}
-          ghcr.io/${{ github.repository }}:${{ needs.prepare.outputs.COMMIT_SHORT_SHA }}
+          ghcr.io/teplitsa/factchecker-bot:${{ needs.prepare.outputs.BRANCH_TAG }}
+          ghcr.io/teplitsa/factchecker-bot:${{ needs.prepare.outputs.COMMIT_SHORT_SHA }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
