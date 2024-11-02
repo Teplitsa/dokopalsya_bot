@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+from functools import wraps
 from typing import Callable, Dict, List, Optional, Union
 from urllib.parse import urlparse, urlunparse
 
@@ -12,6 +14,13 @@ from app.utils.logging import get_logger
 
 logger = get_logger("utils", "prompt_utils")
 
+# Global variable to store loaded prompts
+_loaded_prompts: Dict[str, Prompt_Text] = {}
+
+# Add these variables for caching control
+_last_reload_time: datetime = datetime.min
+_reload_interval: timedelta = timedelta(minutes=1)  # More frequent updates
+
 def create_prompt_text(prompt_client: TextPromptClient) -> Prompt_Text:
     return Prompt_Text(
         prompt=prompt_client.prompt,
@@ -21,9 +30,6 @@ def create_prompt_text(prompt_client: TextPromptClient) -> Prompt_Text:
         labels=prompt_client.labels,
         tags=prompt_client.tags,
     )
-
-# Global variable to store loaded prompts
-_loaded_prompts: Dict[str, Prompt_Text] = {}
 
 def load_prompt_templates(langfuse_client: Langfuse, prompt_label: str = 'production') -> Dict[str, Prompt_Text]:
     logger.debug('Starting to load prompt templates')
@@ -110,10 +116,22 @@ def _log_load_results(successful_loads: List[str], load_errors: Dict[str, str]) 
                      prompt_name=prompt_name,
                      error=error)
 
-def get_prompt(prompt_name: str) -> Optional[Prompt_Text]:
+def get_prompt(prompt_name: str, force_reload: bool = False) -> Optional[Prompt_Text]:
     """
     Retrieve a loaded prompt by name.
+    
+    Args:
+        prompt_name: Name of the prompt to retrieve
+        force_reload: If True, forces a reload from Langfuse before returning
+    
+    Returns:
+        Optional[Prompt_Text]: The requested prompt if found, None otherwise
     """
+    if force_reload:
+        reload_prompts(force=True)
+    elif not _loaded_prompts:
+        reload_prompts()
+        
     return _loaded_prompts.get(prompt_name)
 
 def initialize_langfuse() -> Langfuse:
@@ -123,3 +141,54 @@ def initialize_langfuse() -> Langfuse:
         secret_key=config.LANGFUSE_SECRET_KEY,
         host=config.LANGFUSE_HOST,
     )
+
+def reload_prompts(langfuse_client: Optional[Langfuse] = None, 
+                  prompt_label: str = 'production', 
+                  force: bool = False) -> Dict[str, Prompt_Text]:
+    """
+    Reload prompts from Langfuse, respecting cache unless forced.
+    
+    Args:
+        langfuse_client: Optional Langfuse client. If None, will create new one.
+        prompt_label: Label to filter prompts by (default: 'production')
+        force: If True, bypasses cache check and forces reload
+    
+    Returns:
+        Dict of loaded prompts
+    """
+    global _loaded_prompts, _last_reload_time
+    
+    now = datetime.now()
+    should_reload = (
+        force or 
+        not _loaded_prompts or
+        (now - _last_reload_time) > _reload_interval
+    )
+    
+    if should_reload:
+        logger.info('Reloading prompts from Langfuse',
+                   reason="force" if force else "cache_expired",
+                   last_reload=_last_reload_time)
+                   
+        client = langfuse_client or initialize_langfuse()
+        _loaded_prompts = _load_prompts(client, prompt_label)
+        _last_reload_time = now
+        
+        logger.info('Prompts reloaded successfully',
+                   prompt_count=len(_loaded_prompts))
+    else:
+        logger.debug('Using cached prompts',
+                    cache_age=(now - _last_reload_time).total_seconds())
+    
+    return _loaded_prompts
+
+def with_fresh_prompts(func: Callable):
+    """
+    Decorator to ensure prompts are fresh when calling a function.
+    Reloads prompts if cache is expired.
+    """
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        reload_prompts()  # Will only reload if cache is expired
+        return await func(*args, **kwargs)
+    return wrapper
