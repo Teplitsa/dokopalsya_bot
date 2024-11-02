@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from app.constants import PromptNames
 from app.models.claim_models import (
     Claim,
-    PerplexityClaimReview,
+    PerplexityClaimsReview,
     VerificationResult,
 )
 from app.utils.litellm_utils import perform_litellm_completion
@@ -45,7 +45,7 @@ async def perplexity_claim_check(claim: Claim, short_user_id: str) -> Verificati
                      error=error, claim_id=str(claim.id), user_id=short_user_id)
         return create_verification_result(claim, error=error)
 
-def parse_raw_content(raw_content: str) -> PerplexityClaimReview:
+def parse_raw_content(raw_content: str) -> PerplexityClaimsReview:
     """
     Parse and validate the raw content from the LLM response.
     
@@ -53,20 +53,20 @@ def parse_raw_content(raw_content: str) -> PerplexityClaimReview:
         raw_content (str): Raw JSON string from LLM
         
     Returns:
-        PerplexityClaimReview: Validated claim review object
+        PerplexityClaimsReview: Validated claim review object
         
     Raises:
         ValueError: If parsing or validation fails
     """
     try:
         parsed_content = json_repair.loads(raw_content)
-        return PerplexityClaimReview(**parsed_content)
+        return PerplexityClaimsReview(**parsed_content)
     except json.JSONDecodeError as e:
         raise ValueError(f"Failed to parse raw content: {str(e)}") from e
     except ValidationError as ve:
         raise ValueError(f"Failed to validate parsed content: {str(ve)}") from ve
 
-async def get_perplexity_claim_reviews(claim: Claim, short_user_id: str, prompt: str) -> PerplexityClaimReview:
+async def get_perplexity_claim_reviews(claim: Claim, short_user_id: str, prompt: str) -> PerplexityClaimsReview:
     """Get claim reviews from Perplexity service."""
     for attempt in range(MAX_RETRIES):
         try:
@@ -116,7 +116,7 @@ async def get_perplexity_claim_reviews(claim: Claim, short_user_id: str, prompt:
     
     raise ValueError(f'No valid response from fact-check service after {MAX_RETRIES} attempts')
 
-def create_verification_result(claim: Claim, perplexity_claim_reviews: Optional[PerplexityClaimReview] = None, error: Optional[str] = None) -> VerificationResult:
+def create_verification_result(claim: Claim, perplexity_claim_reviews: Optional[PerplexityClaimsReview] = None, error: Optional[str] = None) -> VerificationResult:
     return VerificationResult(
         claim_id=str(claim.id),
         claim=claim.content,

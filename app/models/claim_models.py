@@ -67,21 +67,26 @@ class GoogleClaimReview(BaseModel):
 
 class PerplexitySource(BaseModel):
     """Represents a source in a Perplexity claim review."""
-    name: str
-    date: Optional[str]
-    content: str
+    name: str = Field(..., description="Name of the source")
+    date: Optional[str] = Field(None, description="Date of the source")
+    content: str = Field(..., description="Brief content from the source")
 
 class PerplexityVerification(BaseModel):
     """Represents the verification details in a Perplexity claim review."""
-    source: List[PerplexitySource]
-    conclusion: str
+    source: List[PerplexitySource] = Field(..., description="List of sources used for verification")
+    conclusion: str = Field(..., description="Conclusion confirming or refuting the claim with explanation")
 
-class PerplexityClaimReview(BaseModel):
-    """Represents a claim review from the Perplexity fact-checking service."""
-    claim_reviews: List[Dict[str, Any]] = Field(..., description="List of claim reviews")
+class PerplexityClaimsReviewItem(BaseModel):
+    """Represents a single claim review item."""
+    claim: str = Field(..., description="The claim being reviewed")
+    verification: PerplexityVerification = Field(..., description="Verification details")
+
+class PerplexityClaimsReview(BaseModel):
+    """Represents the complete claim review response from Perplexity."""
+    claim_reviews: List[PerplexityClaimsReviewItem] = Field(..., description="List of claim reviews")
 
     @property
-    def first_review(self) -> Optional[Dict[str, Any]]:
+    def first_review(self) -> Optional[PerplexityClaimsReviewItem]:
         """Returns the first claim review if available."""
         return self.claim_reviews[0] if self.claim_reviews else None
 
@@ -94,7 +99,7 @@ class VerificationResult(BaseModel):
         None,
         description="Details of the fact check review from Google Fact Check Tools API.",
     )
-    perplexity_claim_reviews: Optional[PerplexityClaimReview] = Field(
+    perplexity_claim_reviews: Optional[PerplexityClaimsReview] = Field(
         None,
         description="Details of the fact check review from Perplexity service.",
     )
