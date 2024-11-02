@@ -83,11 +83,12 @@ async def message(message: Message, db: AsyncSession | None = None) -> None:
                     verdict = review.textual_rating
                     source = review.publisher.get("site", "Неизвестный источник")
                     response_lines.append(f"{idx}. {verdict} - Источник: {source}")
-                elif result.perplexity_claim_reviews:
-                    review = result.perplexity_claim_reviews
-                    conclusion = review.verification.conclusion
-                    sources = ", ".join([source.name for source in review.verification.source])
-                    response_lines.append(f"{idx}. {conclusion} - Источники: {sources}")
+                elif result.perplexity_claim_reviews and result.perplexity_claim_reviews.claim_reviews:
+                    review = result.perplexity_claim_reviews.first_review  # Use the property we defined
+                    if review:
+                        conclusion = review.verification.conclusion
+                        sources = ", ".join([source.name for source in review.verification.source])
+                        response_lines.append(f"{idx}. {conclusion} - Источники: {sources}")
                 else:
                     response_lines.append(f"{idx}. {claim.content} – ⚠️ Нет достоверной информации.")
         else:

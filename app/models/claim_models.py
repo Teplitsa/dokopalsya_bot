@@ -114,8 +114,18 @@ class VerificationResult(BaseModel):
     def perplexity_verification(self) -> Optional[PerplexityVerification]:
         """Returns the verification from the first claim review if available."""
         if (self.perplexity_claim_reviews and 
-            self.perplexity_claim_reviews.claim_reviews):
+            self.perplexity_claim_reviews.claim_reviews and 
+            len(self.perplexity_claim_reviews.claim_reviews) > 0):
             return self.perplexity_claim_reviews.claim_reviews[0].verification
+        return None
+
+    @property
+    def perplexity_first_review(self) -> Optional[PerplexityClaimsReviewItem]:
+        """Returns the first claim review if available."""
+        if (self.perplexity_claim_reviews and 
+            self.perplexity_claim_reviews.claim_reviews and 
+            len(self.perplexity_claim_reviews.claim_reviews) > 0):
+            return self.perplexity_claim_reviews.claim_reviews[0]
         return None
 
 

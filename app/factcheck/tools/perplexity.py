@@ -63,6 +63,9 @@ def parse_raw_content(raw_content: str) -> PerplexityClaimsReview:
     """
     try:
         parsed_content = json_repair.loads(raw_content)
+        if not isinstance(parsed_content, dict) or 'claim_reviews' not in parsed_content:
+            raise ValueError("Response missing required 'claim_reviews' field")
+            
         return PerplexityClaimsReview(**parsed_content)
     except json.JSONDecodeError as e:
         raise ValueError(f"Failed to parse raw content: {str(e)}") from e
