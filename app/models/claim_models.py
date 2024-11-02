@@ -110,6 +110,14 @@ class VerificationResult(BaseModel):
         default=None, description="Timestamp when the claim was verified."
     )
 
+    @property
+    def perplexity_verification(self) -> Optional[PerplexityVerification]:
+        """Returns the verification from the first claim review if available."""
+        if (self.perplexity_claim_reviews and 
+            self.perplexity_claim_reviews.claim_reviews):
+            return self.perplexity_claim_reviews.claim_reviews[0].verification
+        return None
+
 
 class FactCheckSession(BaseModel):
     """Encapsulates a fact-checking session for a user's submission."""
