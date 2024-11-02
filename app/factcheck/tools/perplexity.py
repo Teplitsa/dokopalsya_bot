@@ -37,8 +37,11 @@ async def perplexity_claim_check(claim: Claim, short_user_id: str) -> Verificati
         return create_verification_result(claim, error='Prompt not found')
 
     try:
-        perplexity_claim_review = await get_perplexity_claim_reviews(claim, short_user_id, prompt)
-        return create_verification_result(claim, perplexity_claim_reviews=perplexity_claim_review)
+        perplexity_claims_review = await get_perplexity_claim_reviews(claim, short_user_id, prompt)
+        if not perplexity_claims_review.claim_reviews:
+            return create_verification_result(claim, error='No claim reviews returned')
+            
+        return create_verification_result(claim, perplexity_claim_reviews=perplexity_claims_review)
     except Exception as e:
         error = f'Error during fact-check: {str(e)}'
         logger.error('Error during perplexity fact-check', 
@@ -117,6 +120,17 @@ async def get_perplexity_claim_reviews(claim: Claim, short_user_id: str, prompt:
     raise ValueError(f'No valid response from fact-check service after {MAX_RETRIES} attempts')
 
 def create_verification_result(claim: Claim, perplexity_claim_reviews: Optional[PerplexityClaimsReview] = None, error: Optional[str] = None) -> VerificationResult:
+    """
+    Create a verification result from the claim and perplexity reviews.
+    
+    Args:
+        claim (Claim): The original claim
+        perplexity_claim_reviews (Optional[PerplexityClaimsReview]): The perplexity review results
+        error (Optional[str]): Any error message
+        
+    Returns:
+        VerificationResult: The complete verification result
+    """
     return VerificationResult(
         claim_id=str(claim.id),
         claim=claim.content,
