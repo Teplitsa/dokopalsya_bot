@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime
 from typing import Optional
 
@@ -49,7 +50,7 @@ def parse_raw_content(raw_content: str) -> dict:
         parsed_content = json_repair.loads(raw_content)
         PerplexityClaimReview(**parsed_content)  # Validate the structure
         return parsed_content
-    except json_repair.JSONDecodeError as e:
+    except json.JSONDecodeError as e:
         raise ValueError(f"Failed to parse raw content: {str(e)}") from e
     except ValidationError as ve:
         raise ValueError(f"Failed to validate parsed content: {str(ve)}") from ve
