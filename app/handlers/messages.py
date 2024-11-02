@@ -19,21 +19,21 @@ logger = get_logger("handlers", "messages")
 @router.message(CommandStart())
 async def process_start_command(message: Message) -> None:
     logger.debug('Start command received', user_id=message.from_user.id)
-    await message.answer("Welcome! Use /info for more information.")
+    await message.answer("Привет! Отправь мне любой текст, и я проверю его на достоверность.")
 
 
 @router.message(Command(commands="info"))
 @flags.chat_action("typing")
 async def process_info_command(message: Message) -> None:
-    logger.debug('Info command received', user_id=message.from_user.id)
-    await message.answer("reply.info()")
+    logger.debug('Здесь будет информация о боте', user_id=message.from_user.id)
+    await message.answer("Здесь будет информация о боте")
 
 
 @flags.chat_action("typing")
 @router.message(Command(commands=re.compile(r".*")))
 async def process_other_commands(message: Message) -> None:
     logger.debug('Other command received', user_id=message.from_user.id, command=message.text)
-    await message.answer("reply.other_commands()")
+    await message.answer("Ответ на другие команды")
 
 
 @router.message(F.text | F.caption)
