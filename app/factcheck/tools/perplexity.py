@@ -45,17 +45,29 @@ async def perplexity_claim_check(claim: Claim, short_user_id: str) -> Verificati
                      error=error, claim_id=str(claim.id), user_id=short_user_id)
         return create_verification_result(claim, error=error)
 
-def parse_raw_content(raw_content: str) -> dict:
+def parse_raw_content(raw_content: str) -> PerplexityClaimReview:
+    """
+    Parse and validate the raw content from the LLM response.
+    
+    Args:
+        raw_content (str): Raw JSON string from LLM
+        
+    Returns:
+        PerplexityClaimReview: Validated claim review object
+        
+    Raises:
+        ValueError: If parsing or validation fails
+    """
     try:
         parsed_content = json_repair.loads(raw_content)
-        PerplexityClaimReview(**parsed_content)  # Validate the structure
-        return parsed_content
+        return PerplexityClaimReview(**parsed_content)
     except json.JSONDecodeError as e:
         raise ValueError(f"Failed to parse raw content: {str(e)}") from e
     except ValidationError as ve:
         raise ValueError(f"Failed to validate parsed content: {str(ve)}") from ve
 
 async def get_perplexity_claim_reviews(claim: Claim, short_user_id: str, prompt: str) -> PerplexityClaimReview:
+    """Get claim reviews from Perplexity service."""
     for attempt in range(MAX_RETRIES):
         try:
             response = await perform_litellm_completion(
@@ -72,24 +84,33 @@ async def get_perplexity_claim_reviews(claim: Claim, short_user_id: str, prompt:
             if response and response.choices:
                 raw_content = response.choices[0].message.content
                 logger.info('Perplexity fact-check raw response', 
-                            response=raw_content, 
-                            claim_id=str(claim.id), user_id=short_user_id)
+                          response=raw_content, 
+                          claim_id=str(claim.id), 
+                          user_id=short_user_id)
                 
                 try:
-                    validated_result = parse_raw_content(raw_content)
-                    return PerplexityClaimReview(**validated_result)
+                    return parse_raw_content(raw_content)
                 except ValueError as e:
-                    logger.error(f'Error parsing or validating response (Attempt {attempt + 1}/{MAX_RETRIES}): {str(e)}', 
-                                 claim_id=str(claim.id), user_id=short_user_id)
+                    logger.error(
+                        f'Error parsing or validating response (Attempt {attempt + 1}/{MAX_RETRIES}): {str(e)}',
+                        claim_id=str(claim.id),
+                        user_id=short_user_id
+                    )
                     if attempt == MAX_RETRIES - 1:
                         raise
-                    continue  # Retry on parsing or validation error
+                    continue
             
-            logger.warning(f'No valid response (Attempt {attempt + 1}/{MAX_RETRIES}). Retrying...', 
-                           claim_id=str(claim.id), user_id=short_user_id)
+            logger.warning(
+                f'No valid response (Attempt {attempt + 1}/{MAX_RETRIES}). Retrying...',
+                claim_id=str(claim.id),
+                user_id=short_user_id
+            )
         except Exception as e:
-            logger.error(f'Error during fact-check (Attempt {attempt + 1}/{MAX_RETRIES}): {str(e)}', 
-                         claim_id=str(claim.id), user_id=short_user_id)
+            logger.error(
+                f'Error during fact-check (Attempt {attempt + 1}/{MAX_RETRIES}): {str(e)}',
+                claim_id=str(claim.id),
+                user_id=short_user_id
+            )
             if attempt == MAX_RETRIES - 1:
                 raise
     

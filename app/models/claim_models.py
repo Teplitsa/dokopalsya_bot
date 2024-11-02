@@ -78,8 +78,12 @@ class PerplexityVerification(BaseModel):
 
 class PerplexityClaimReview(BaseModel):
     """Represents a claim review from the Perplexity fact-checking service."""
-    claim: str
-    verification: PerplexityVerification
+    claim_reviews: List[Dict[str, Any]] = Field(..., description="List of claim reviews")
+
+    @property
+    def first_review(self) -> Optional[Dict[str, Any]]:
+        """Returns the first claim review if available."""
+        return self.claim_reviews[0] if self.claim_reviews else None
 
 class VerificationResult(BaseModel):
     """Represents the verification result of a factual claim."""
