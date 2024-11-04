@@ -19,7 +19,7 @@ _loaded_prompts: Dict[str, Prompt_Text] = {}
 
 # Add these variables for caching control
 _last_reload_time: datetime = datetime.min
-_reload_interval: timedelta = timedelta(minutes=1)  # More frequent updates
+_reload_interval: timedelta = timedelta(minutes=1) if config.USE_PROMPT_CACHE else timedelta(seconds=0)
 
 def create_prompt_text(prompt_client: TextPromptClient) -> Prompt_Text:
     return Prompt_Text(
@@ -127,7 +127,7 @@ def get_prompt(prompt_name: str, force_reload: bool = False) -> Optional[Prompt_
     Returns:
         Optional[Prompt_Text]: The requested prompt if found, None otherwise
     """
-    if force_reload:
+    if not config.USE_PROMPT_CACHE or force_reload:
         reload_prompts(force=True)
     elif not _loaded_prompts:
         reload_prompts()
@@ -146,7 +146,7 @@ def reload_prompts(langfuse_client: Optional[Langfuse] = None,
                   prompt_label: str = 'production', 
                   force: bool = False) -> Dict[str, Prompt_Text]:
     """
-    Reload prompts from Langfuse, respecting cache unless forced.
+    Reload prompts from Langfuse, respecting cache settings.
     
     Args:
         langfuse_client: Optional Langfuse client. If None, will create new one.
@@ -162,12 +162,14 @@ def reload_prompts(langfuse_client: Optional[Langfuse] = None,
     should_reload = (
         force or 
         not _loaded_prompts or
+        not config.USE_PROMPT_CACHE or
         (now - _last_reload_time) > _reload_interval
     )
     
     if should_reload:
         logger.info('Reloading prompts from Langfuse',
                    reason="force" if force else "cache_expired",
+                   cache_enabled=config.USE_PROMPT_CACHE,
                    last_reload=_last_reload_time)
                    
         client = langfuse_client or initialize_langfuse()
@@ -175,7 +177,8 @@ def reload_prompts(langfuse_client: Optional[Langfuse] = None,
         _last_reload_time = now
         
         logger.info('Prompts reloaded successfully',
-                   prompt_count=len(_loaded_prompts))
+                   prompt_count=len(_loaded_prompts),
+                   cache_enabled=config.USE_PROMPT_CACHE)
     else:
         logger.debug('Using cached prompts',
                     cache_age=(now - _last_reload_time).total_seconds())
@@ -185,10 +188,13 @@ def reload_prompts(langfuse_client: Optional[Langfuse] = None,
 def with_fresh_prompts(func: Callable):
     """
     Decorator to ensure prompts are fresh when calling a function.
-    Reloads prompts if cache is expired.
+    Reloads prompts if cache is disabled or cache is expired.
     """
     @wraps(func)
     async def wrapper(*args, **kwargs):
-        reload_prompts()  # Will only reload if cache is expired
+        if not config.USE_PROMPT_CACHE:
+            reload_prompts(force=True)
+        else:
+            reload_prompts()  # Will only reload if cache is expired
         return await func(*args, **kwargs)
     return wrapper

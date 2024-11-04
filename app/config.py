@@ -21,6 +21,9 @@ USE_POSTGRES: bool = env.bool("USE_POSTGRES", False)
 
 LOG_LEVEL = env.log_level("LOG_LEVEL", "INFO")
 
+# Add prompt caching configuration
+USE_PROMPT_CACHE: bool = env.bool("USE_PROMPT_CACHE", True)  # Default to True for production
+
 if USE_POSTGRES:
     PG_HOST: str = env.str("POSTGRES_HOST")
     PG_PORT: int = env.int("POSTGRES_PORT", 5432)
