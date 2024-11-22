@@ -31,8 +31,18 @@ def create_prompt_text(prompt_client: TextPromptClient) -> Prompt_Text:
         tags=prompt_client.tags,
     )
 
-def load_prompt_templates(langfuse_client: Langfuse, prompt_label: str = 'production') -> Dict[str, Prompt_Text]:
-    logger.debug('Starting to load prompt templates')
+def load_prompt_templates(langfuse_client: Langfuse, prompt_label: str = config.LANGFUSE_PROMPT_LABEL) -> Dict[str, Prompt_Text]:
+    """
+    Load prompt templates from Langfuse using the configured label.
+    
+    Args:
+        langfuse_client: Langfuse client instance
+        prompt_label: Label to filter prompts by (defaults to config.LANGFUSE_PROMPT_LABEL)
+    
+    Returns:
+        Dict of loaded prompts
+    """
+    logger.debug('Starting to load prompt templates', prompt_label=prompt_label)
     global _loaded_prompts
     _loaded_prompts = _load_prompts(langfuse_client, prompt_label)
     return _loaded_prompts
@@ -143,14 +153,14 @@ def initialize_langfuse() -> Langfuse:
     )
 
 def reload_prompts(langfuse_client: Optional[Langfuse] = None, 
-                  prompt_label: str = 'production', 
+                  prompt_label: str = config.LANGFUSE_PROMPT_LABEL, 
                   force: bool = False) -> Dict[str, Prompt_Text]:
     """
     Reload prompts from Langfuse, respecting cache settings.
     
     Args:
         langfuse_client: Optional Langfuse client. If None, will create new one.
-        prompt_label: Label to filter prompts by (default: 'production')
+        prompt_label: Label to filter prompts by (defaults to config.LANGFUSE_PROMPT_LABEL)
         force: If True, bypasses cache check and forces reload
     
     Returns:
@@ -170,6 +180,7 @@ def reload_prompts(langfuse_client: Optional[Langfuse] = None,
         logger.info('Reloading prompts from Langfuse',
                    reason="force" if force else "cache_expired",
                    cache_enabled=config.USE_PROMPT_CACHE,
+                   prompt_label=prompt_label,
                    last_reload=_last_reload_time)
                    
         client = langfuse_client or initialize_langfuse()
@@ -178,10 +189,12 @@ def reload_prompts(langfuse_client: Optional[Langfuse] = None,
         
         logger.info('Prompts reloaded successfully',
                    prompt_count=len(_loaded_prompts),
+                   prompt_label=prompt_label,
                    cache_enabled=config.USE_PROMPT_CACHE)
     else:
         logger.debug('Using cached prompts',
-                    cache_age=(now - _last_reload_time).total_seconds())
+                    cache_age=(now - _last_reload_time).total_seconds(),
+                    prompt_label=prompt_label)
     
     return _loaded_prompts
 

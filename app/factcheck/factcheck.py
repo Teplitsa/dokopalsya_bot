@@ -16,8 +16,8 @@ logger = get_logger("factcheck", "verification")
 fact_check_tools: Dict[
     str,
     Union[
-        Callable[[Claim, str], VerificationResult],
-        Callable[[Claim, str], Awaitable[VerificationResult]],
+        Callable[[Claim, str, str], VerificationResult],
+        Callable[[Claim, str, str], Awaitable[VerificationResult]],
     ],
 ] = {
     "google": google_claim_check,
@@ -27,8 +27,8 @@ fact_check_tools: Dict[
 def register_fact_check_tool(
     name: str,
     tool: Union[
-        Callable[[Claim, str], VerificationResult],
-        Callable[[Claim, str], Awaitable[VerificationResult]],
+        Callable[[Claim, str, str], VerificationResult],
+        Callable[[Claim, str, str], Awaitable[VerificationResult]],
     ],
 ) -> None:
     """
@@ -36,14 +36,15 @@ def register_fact_check_tool(
 
     Args:
         name (str): The name of the tool.
-        tool (Union[Callable[[Claim, str], VerificationResult], Callable[[Claim, str], Awaitable[VerificationResult]]]):
+        tool (Union[Callable[[Claim, str, str], VerificationResult], 
+                   Callable[[Claim, str, str], Awaitable[VerificationResult]]]):
             The function to perform fact-checking.
     """
     fact_check_tools[name] = tool
     logger.info(f"Registered new fact-check tool: {name}")
 
 async def verify_single_claim(
-    claim: Claim, short_user_id: str
+    claim: Claim, short_user_id: str, trace_id: str
 ) -> VerificationResult:
     """
     Verify a single claim using the configured fact-check tool.
@@ -51,12 +52,15 @@ async def verify_single_claim(
     Args:
         claim (Claim): The claim to be verified.
         short_user_id (str): The short user ID generated from the message object.
+        trace_id (str): The trace ID for the fact-check session.
 
     Returns:
         VerificationResult: The result of the claim verification from the specified tool.
     """
     if FACT_CHECK_TOOL not in fact_check_tools:
-        logger.error(f"Unknown fact-check tool: {FACT_CHECK_TOOL}", user_id=short_user_id)
+        logger.error(f"Unknown fact-check tool: {FACT_CHECK_TOOL}", 
+                    user_id=short_user_id, 
+                    trace_id=trace_id)
         return VerificationResult(
             claim_id=str(claim.id),
             claim=claim.content,
@@ -69,13 +73,16 @@ async def verify_single_claim(
     try:
         tool = fact_check_tools[FACT_CHECK_TOOL]
         result = (
-            await tool(claim, short_user_id)
+            await tool(claim, short_user_id, trace_id)
             if asyncio.iscoroutinefunction(tool)
-            else tool(claim, short_user_id)
+            else tool(claim, short_user_id, trace_id)
         )
         return await result if isinstance(result, Awaitable) else result
     except Exception as e:
-        logger.error(f"Error in {FACT_CHECK_TOOL} fact-check", error=str(e), user_id=short_user_id)
+        logger.error(f"Error in {FACT_CHECK_TOOL} fact-check", 
+                    error=str(e), 
+                    user_id=short_user_id,
+                    trace_id=trace_id)
         return VerificationResult(
             claim_id=str(claim.id),
             claim=claim.content,
@@ -86,7 +93,7 @@ async def verify_single_claim(
         )
 
 async def verify_multiple_claims(
-    claims: List[Claim], short_user_id: str, concurrency_limit: int = 10
+    claims: List[Claim], short_user_id: str, trace_id: str, concurrency_limit: int = 10
 ) -> List[VerificationResult]:
     """
     Verify a list of claims using the configured fact-check tool concurrently.
@@ -94,6 +101,7 @@ async def verify_multiple_claims(
     Args:
         claims (List[Claim]): The list of claims to verify.
         short_user_id (str): The short user ID generated from the message object.
+        trace_id (str): The trace ID for the fact-check session.
         concurrency_limit (int): The maximum number of concurrent verification tasks.
 
     Returns:
@@ -104,7 +112,7 @@ async def verify_multiple_claims(
 
     async def sem_verify_claim(claim: Claim):
         async with semaphore:
-            result = await verify_single_claim(claim, short_user_id)
+            result = await verify_single_claim(claim, short_user_id, trace_id)
             results.append(result)
 
     tasks = [sem_verify_claim(claim) for claim in claims]
@@ -114,12 +122,15 @@ async def verify_multiple_claims(
         "Claims verification completed",
         total_claims=len(claims),
         verified_claims=len(results),
-        user_id=short_user_id
+        user_id=short_user_id,
+        trace_id=trace_id
     )
     return results
 
 async def process_fact_check_session(
-    session: FactCheckSession, short_user_id: str
+    session: FactCheckSession, 
+    short_user_id: str, 
+    trace_id: str
 ) -> FactCheckSession:
     """
     Process a full fact-checking session, including claims extraction and verification.
@@ -127,30 +138,45 @@ async def process_fact_check_session(
     Args:
         session (FactCheckSession): The fact-checking session to process.
         short_user_id (str): The short user ID generated from the message object.
+        trace_id (str): The trace ID for the fact-check session.
 
     Returns:
         FactCheckSession: The updated session with extracted claims and their verification results.
     """
-    # Extract facts from the original text
-    session.claims = await extract_claims(session.original_text, short_user_id)
+    logger.info("Starting fact-check session", trace_id=trace_id, user_id=short_user_id)
+
+    # Extract facts from the original text - pass the trace_id
+    session.claims = await extract_claims(
+        text=session.original_text, 
+        short_user_id=short_user_id, 
+        trace_id=trace_id
+    )
 
     if not session.claims:
-        logger.warn("No claims extracted in the session", user_id=short_user_id)
+        logger.warn("No claims extracted in the session", trace_id=trace_id, user_id=short_user_id)
         session.completed_at = datetime.now(UTC)
         return session
 
     logger.info(
-        "Starting verification of extracted claims", num_facts=len(session.claims), user_id=short_user_id
+        "Starting verification of extracted claims", 
+        num_facts=len(session.claims), 
+        trace_id=trace_id,
+        user_id=short_user_id
     )
 
     # Verify the extracted claims concurrently using the configured tool
     session.verification_results = await verify_multiple_claims(
-        session.claims, short_user_id
+        claims=session.claims, 
+        short_user_id=short_user_id, 
+        trace_id=trace_id
     )
 
     session.completed_at = datetime.now(UTC)
     logger.info(
-        "Fact checking process completed for session", session_id=session.session_id, user_id=short_user_id
+        "Fact checking process completed for session", 
+        session_id=session.session_id, 
+        trace_id=trace_id,
+        user_id=short_user_id
     )
 
     return session

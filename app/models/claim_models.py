@@ -68,8 +68,8 @@ class GoogleClaimReview(BaseModel):
 class PerplexitySource(BaseModel):
     """Represents a source in a Perplexity claim review."""
     name: str = Field(..., description="Name of the source")
-    date: Optional[str] = Field(None, description="Date of the source")
     content: str = Field(..., description="Brief content from the source")
+    url: Optional[str] = Field(None, description="URL link to the source")
 
 class PerplexityVerification(BaseModel):
     """Represents the verification details in a Perplexity claim review."""
@@ -81,14 +81,14 @@ class PerplexityClaimsReviewItem(BaseModel):
     claim: str = Field(..., description="The claim being reviewed")
     verification: PerplexityVerification = Field(..., description="Verification details")
 
-class PerplexityClaimsReview(BaseModel):
-    """Represents the complete claim review response from Perplexity."""
+class PerplexityResponse(BaseModel):
+    """Represents the complete response from Perplexity including citations."""
     claim_reviews: List[PerplexityClaimsReviewItem] = Field(..., description="List of claim reviews")
+    citations: Optional[List[str]] = Field(None, description="List of citation URLs used in the response")
 
-    @property
-    def first_review(self) -> Optional[PerplexityClaimsReviewItem]:
-        """Returns the first claim review if available."""
-        return self.claim_reviews[0] if self.claim_reviews else None
+class PerplexityClaimsReview(PerplexityResponse):
+    """Represents the complete claim review response from Perplexity."""
+    pass
 
 class VerificationResult(BaseModel):
     """Represents the verification result of a factual claim."""
