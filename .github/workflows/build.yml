@@ -90,6 +90,11 @@ jobs:
     environment: ${{ needs.prepare.outputs.ENV }}
     
     steps:
+      - name: Debug environment
+        run: |
+          echo "Environment: ${{ needs.prepare.outputs.ENV }}"
+          echo "Using webhook: ${{ needs.prepare.outputs.ENV == 'prod' && 'PROD' || 'DEV' }}_DEPLOY_WEBHOOK_URL"
+
       - name: Deploy to environment
         uses: distributhor/workflow-webhook@v3
         with:
