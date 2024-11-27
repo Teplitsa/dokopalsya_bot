@@ -1,5 +1,6 @@
 name: Build and Deploy
 
+# Trigger workflow on pushes to main or develop branches
 on:
   push:
     branches:
@@ -7,14 +8,16 @@ on:
       - develop
 
 jobs:
+  # Job to prepare environment variables and tags
   prepare:
     runs-on: ubuntu-latest
     outputs:
       COMMIT_SHORT_SHA: ${{ steps.set_short_sha.outputs.COMMIT_SHORT_SHA }}
       BRANCH_TAG: ${{ steps.set_tag.outputs.BRANCH_TAG }}
       ENV: ${{ steps.set_env.outputs.ENV }}
+    
     steps:
-
+      # Generate short SHA for Docker tag
       - name: Set short git commit SHA
         id: set_short_sha
         run: |
@@ -24,6 +27,7 @@ jobs:
       - name: Confirm git commit SHA output
         run: echo ${{ steps.set_short_sha.outputs.COMMIT_SHORT_SHA }}
 
+      # Generate branch-based tag for Docker image
       - name: Set branch tag
         id: set_tag
         run: |
@@ -33,6 +37,7 @@ jobs:
       - name: Confirm branch tag output
         run: echo ${{ steps.set_tag.outputs.BRANCH_TAG }}
 
+      # Determine deployment environment (prod/dev)
       - name: Set environment
         id: set_env
         run: |
@@ -42,44 +47,56 @@ jobs:
             echo "ENV=dev" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Confirm branch tag output
-        run: echo ${{ steps.set_tag.outputs.ENV }}
+      - name: Confirm environment
+        run: echo ${{ steps.set_env.outputs.ENV }}
 
+  # Job to build and push Docker image
   build:
     needs: prepare
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      # Setup steps
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
-    - name: Login to GitHub Container Registry
-      uses: docker/login-action@v2 
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+      # Authentication
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2 
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Build and push
-      uses: docker/build-push-action@v3
-      with:
-        context: .
-        push: true
-        tags: |
-          ghcr.io/teplitsa/factchecker-bot:${{ needs.prepare.outputs.BRANCH_TAG }}
-          ghcr.io/teplitsa/factchecker-bot:${{ needs.prepare.outputs.COMMIT_SHORT_SHA }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+      # Build and push Docker image
+      - name: Build and push
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/teplitsa/factchecker-bot:${{ needs.prepare.outputs.BRANCH_TAG }}
+            ghcr.io/teplitsa/factchecker-bot:${{ needs.prepare.outputs.COMMIT_SHORT_SHA }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
+  # Job to trigger deployment webhook
   deploy:
     needs: [prepare, build]
     runs-on: ubuntu-latest
+    environment: ${{ needs.prepare.outputs.ENV }}
+    
     steps:
       - name: Deploy to environment
         uses: distributhor/workflow-webhook@v3
         with:
-          webhook_url: ${{ secrets.DEPLOY_WEBHOOK_URL }}
+          webhook_url: >-
+            ${{ 
+              needs.prepare.outputs.ENV == 'prod' 
+              && secrets.PROD_DEPLOY_WEBHOOK_URL 
+              || secrets.DEV_DEPLOY_WEBHOOK_URL 
+            }}
           verify_ssl: false
