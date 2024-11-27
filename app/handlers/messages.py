@@ -1,5 +1,6 @@
 import re
 import uuid
+from typing import List
 
 from aiogram import F, Router, flags
 from aiogram.filters import Command, CommandStart
@@ -35,6 +36,56 @@ async def process_info_command(message: Message) -> None:
 async def process_other_commands(message: Message) -> None:
     logger.debug('Other command received', user_id=message.from_user.id, command=message.text)
     await message.answer(messages['other_commands']['default_response'])
+
+
+def split_message(text: str, max_length: int = 2000) -> List[str]:
+    """
+    Split a message into chunks that don't exceed max_length while preserving parameter integrity.
+    
+    Args:
+        text: The text to split
+        max_length: Maximum length of each chunk (default: 2000)
+        
+    Returns:
+        List of message chunks
+    """
+    # If text is shorter than max_length, return it as is
+    if len(text) <= max_length:
+        return [text]
+    
+    chunks = []
+    current_chunk = ''
+    
+    # Split by lines to preserve formatting
+    lines = text.split('\n')
+    
+    for line in lines:
+        # If adding this line would exceed max_length
+        if len(current_chunk + line + '\n') > max_length:
+            # If current chunk is not empty, add it to chunks
+            if current_chunk:
+                chunks.append(current_chunk.rstrip())
+                current_chunk = ''
+            
+            # If single line is longer than max_length, split it
+            if len(line) > max_length:
+                words = line.split(' ')
+                for word in words:
+                    if len(current_chunk + word + ' ') > max_length:
+                        chunks.append(current_chunk.rstrip())
+                        current_chunk = word + ' '
+                    else:
+                        current_chunk += word + ' '
+            else:
+                current_chunk = line + '\n'
+        else:
+            current_chunk += line + '\n'
+    
+    # Add the last chunk if not empty
+    if current_chunk:
+        chunks.append(current_chunk.rstrip())
+    
+    return chunks
 
 
 @router.message(F.text | F.caption)
@@ -139,4 +190,14 @@ async def message(message: Message) -> None:
     response = "\n".join(response_lines)
 
     logger.info('Sending fact-check response', user_id=short_user_id, claims_count=len(processed_session.claims))
-    await message.reply(response, parse_mode="HTML", link_preview_options=LinkPreviewOptions(is_disabled=True))
+    
+    # Split response if it's too long
+    message_parts = split_message(response)
+    
+    # Send each part separately
+    for part in message_parts:
+        await message.reply(
+            part,
+            parse_mode="HTML",
+            link_preview_options=LinkPreviewOptions(is_disabled=True)
+        )
