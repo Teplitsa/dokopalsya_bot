@@ -93,10 +93,5 @@ jobs:
       - name: Deploy to environment
         uses: distributhor/workflow-webhook@v3
         with:
-          webhook_url: >-
-            ${{ 
-              needs.prepare.outputs.ENV == 'prod' 
-              && secrets.PROD_DEPLOY_WEBHOOK_URL 
-              || secrets.DEV_DEPLOY_WEBHOOK_URL 
-            }}
+          webhook_url: ${{ secrets[format('{0}_DEPLOY_WEBHOOK_URL', needs.prepare.outputs.ENV == 'prod' && 'PROD' || 'DEV')] }}
           verify_ssl: false
