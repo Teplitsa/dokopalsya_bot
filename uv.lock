@@ -260,6 +260,7 @@ dependencies = [
     { name = "langfuse" },
     { name = "litellm" },
     { name = "orjson" },
+    { name = "pyyaml" },
     { name = "structlog" },
     { name = "tenacity" },
 ]
@@ -280,6 +281,7 @@ requires-dist = [
     { name = "langfuse", specifier = ">=2.52.1" },
     { name = "litellm", specifier = ">=1.52.12" },
     { name = "orjson", specifier = ">=3.10.7" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "structlog", specifier = ">=24.4.0" },
     { name = "tenacity", specifier = ">=9.0.0" },
 ]
