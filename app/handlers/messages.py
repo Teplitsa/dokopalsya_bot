@@ -129,20 +129,25 @@ async def message(message: Message) -> None:
                     verdict = review.textual_rating
                     source = review.publisher.get("site", "Неизвестный источник")
                     response_lines.append(f"<b>Вердикт:</b> {verdict}")
-                    response_lines.append(f"<b>Источник:</b> <a href='{source.url}'>{source.name}</a>")
+                    response_lines.append(f"<b>Источник:</b> <a href='{review.url}'>{source}</a>")
                 
                 if result.perplexity_claim_reviews and result.perplexity_claim_reviews.claim_reviews:
                     review = result.perplexity_claim_reviews.claim_reviews[0]
                     if review:
-                        conclusion = review.verification.conclusion
-                        response_lines.append(f"<b>Заключение:</b> {conclusion}")
-                        response_lines.append("\n<b>Источники:</b>")
+                        # Access the verification details using the correct model structure
+                        verification = review.verification
+                        response_lines.append(f"<b>Заключение:</b> {verification.conclusion}")
                         
-                        # Add sources with their content and URLs
-                        for source in review.verification.source:
-                            response_lines.append(f"<a href='{source.url}'>{source.name}</a>")
-                            if source.content:
-                                response_lines.append(f"<blockquote>{source.content}</blockquote>")
+                        if verification.source:
+                            response_lines.append("\n<b>Источники:</b>")
+                            # Add sources with their content and URLs
+                            for source in verification.source:
+                                if source.url:
+                                    response_lines.append(f"<a href='{source.url}'>{source.name}</a>")
+                                else:
+                                    response_lines.append(f"<b>{source.name}</b>")
+                                if source.content:
+                                    response_lines.append(f"<blockquote>{source.content}</blockquote>")
                 else:
                     response_lines.append("⚠️ Нет достоверной информации.")
         else:

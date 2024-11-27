@@ -1,5 +1,4 @@
 import json
-import traceback
 from typing import List, Optional
 
 import json_repair
