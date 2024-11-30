@@ -16,12 +16,13 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy.ext.asyncio import close_all_sessions
 
-from app import config, utils, web_handlers
+from app import config, utils
 from app.handlers.messages import router as messages_router
 from app.middlewares.db_session import DataBaseSessionMiddleware
 from app.middlewares.logging_middleware import StructLoggingMiddleware
 from app.utils import prompt_utils
 from app.utils.logging import get_logger
+from app.web_handlers.tg_updates import tg_updates_app
 
 
 async def create_db_connections(dp: Dispatcher) -> None:
@@ -183,9 +184,11 @@ async def aiogram_on_shutdown_polling(dispatcher: Dispatcher, bot: Bot) -> None:
 async def setup_aiohttp_app(bot: Bot, dp: Dispatcher) -> web.Application:
     scheduler = aiojobs.Scheduler()
     app = web.Application()
+     
     subapps: list[tuple[str, web.Application]] = [
-        ("/tg/webhooks/", web_handlers.tg_updates_app),
+        ("/tg/webhooks/", tg_updates_app),
     ]
+    
     for prefix, subapp in subapps:
         subapp["bot"] = bot
         subapp["dp"] = dp
